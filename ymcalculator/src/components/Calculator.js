@@ -39,9 +39,17 @@ const Calculator = () => {
       setInput(newInput);
       setOpenParentheses(!openParentheses);
     } else {
-      const newInput = input + value;
+      let newInput = input;
+  
+      // Handle zero as the first number
+      if (input === '0' && value !== '.' && !isNaN(value)) {
+        newInput = value; // Replace the zero
+      } else {
+        newInput = input + value; // Append the value
+      }
+  
       setInput(newInput);
-
+  
       // Show live result only if the input doesn't end with an operator
       const endsWithOperator = /[+\-*/]$/.test(newInput);
       if (!endsWithOperator) {
@@ -51,7 +59,7 @@ const Calculator = () => {
         setResult('');
       }
     }
-  };
+  };  
 
   const handleHistoryClick = (historyItem) => {
     const [_, historyValue] = historyItem.split(' = '); // Extract the result
