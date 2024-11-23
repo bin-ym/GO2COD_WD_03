@@ -1,4 +1,4 @@
-# Calculator Web App
+# Ym Calculator Web App
 
 A simple calculator web application built using React.js, math.js for safe expression evaluation, and Tailwind CSS for styling.
 
@@ -24,4 +24,4 @@ A simple calculator web application built using React.js, math.js for safe expre
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/your-username/calculator-app.git
+   git clone https://github.com/bin-ym/GO2COD_WD_03
