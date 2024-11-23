@@ -1,18 +1,22 @@
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
-const History = require("./models/History"); // Ensure you have this model for storing history
+const History = require("./models/History");
+require("dotenv").config(); // Load environment variables from .env file
 
 const app = express();
-const port = 5000;
+const port = process.env.PORT || 5000; // Use PORT from .env or default to 5000
 
 // Middleware
 app.use(express.json());
-app.use(cors()); // Enable CORS for all routes (you can specify origin if needed)
+app.use(cors());
 
 // MongoDB connection
 mongoose
-  .connect("mongodb://localhost:27017/ymcalculator", { useNewUrlParser: true, useUnifiedTopology: true })
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
   .then(() => console.log("Connected to MongoDB"))
   .catch((err) => console.log("Error connecting to MongoDB:", err));
 
@@ -21,8 +25,8 @@ mongoose
 // Get history
 app.get("/api/history", async (req, res) => {
   try {
-    const history = await History.find(); // Get all history from DB
-    res.json(history); // Return the history data
+    const history = await History.find();
+    res.json(history);
   } catch (error) {
     console.error("Error fetching history:", error);
     res.status(500).json({ message: "Error fetching history" });
@@ -35,11 +39,11 @@ app.post("/api/history", async (req, res) => {
     const { expression, result } = req.body;
 
     const newHistory = new History({
-      expression: expression,
-      result: result,
+      expression,
+      result,
     });
 
-    await newHistory.save(); // Save history to DB
+    await newHistory.save();
     res.status(201).json({ message: "History saved successfully" });
   } catch (error) {
     console.error("Error saving history:", error);
@@ -50,7 +54,7 @@ app.post("/api/history", async (req, res) => {
 // Clear history
 app.delete("/api/history", async (req, res) => {
   try {
-    await History.deleteMany(); // Clear all history from DB
+    await History.deleteMany();
     res.json({ message: "History cleared successfully" });
   } catch (error) {
     console.error("Error clearing history:", error);

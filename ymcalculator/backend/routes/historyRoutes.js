@@ -3,10 +3,10 @@ const cors = require("cors");
 const app = express();
 const port = 5000;
 
-app.use(cors()); // Allow all origins (for development)
+app.use(cors()); // Allow all origins
 app.use(express.json()); // To parse JSON bodies
 
-// In-memory history array (you can use a database in production)
+// In-memory history array
 let history = [];
 
 // Get history
