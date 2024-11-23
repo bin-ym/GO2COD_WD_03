@@ -1,41 +1,81 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { evaluate } from "mathjs";
 
 const Calculator = () => {
-  const [input, setInput] = useState(""); // Current input expression
-  const [result, setResult] = useState(""); // Calculated result
-  const [history, setHistory] = useState([]); // Stored history of calculations
-  const [showHistory, setShowHistory] = useState(false); // Toggle for history modal
-  const [openParentheses, setOpenParentheses] = useState(true); // For toggling `(` and `)`
+  const [input, setInput] = useState("");
+  const [result, setResult] = useState("");
+  const [history, setHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [openParentheses, setOpenParentheses] = useState(true);
+  const [isResultDisplayed, setIsResultDisplayed] = useState(false); // Track if result is displayed
 
-  // Function to safely evaluate the expression
+  // Fetch history from backend on component mount
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const response = await fetch("http://localhost:5000/api/history");
+        const data = await response.json();
+        setHistory(data);
+      } catch (error) {
+        console.error("Error fetching history:", error);
+      }
+    };
+    fetchHistory();
+  }, []);
+
+  // Safe expression evaluation using math.js
   const evaluateExpression = (expression) => {
     try {
-      return eval(expression); // In production, replace with a safer math parser
+      return evaluate(expression);
     } catch {
       return "";
     }
   };
 
-  // Handle button click (including special operations)
-  const handleButtonClick = (value) => {
+  // Handle button clicks
+  const handleButtonClick = async (value) => {
     if (value === "C") {
       setInput("");
       setResult("");
+      setIsResultDisplayed(false); // Reset flag
     } else if (value === "=") {
-      if (input.trim() === "") return; // Prevent empty evaluation
+      if (input.trim() === "") return;
       const finalResult = evaluateExpression(input);
       if (finalResult !== "") {
-        setHistory((prev) => [...prev, `${input} = ${finalResult}`]);
+        const historyItem = {
+          _id: new Date().getTime(),
+          expression: input,
+          result: finalResult,
+        };
+
+        // Update history in the frontend
+        setHistory((prev) => [...prev, historyItem]);
+
+        // Save the history to the backend
+        try {
+          await fetch("http://localhost:5000/api/history", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(historyItem),
+          });
+        } catch (error) {
+          console.error("Failed to save history:", error);
+        }
       }
       setResult(finalResult);
       setInput(finalResult.toString());
+      setIsResultDisplayed(true); // Set result displayed flag
     } else if (value === "%") {
       const percentageResult = evaluateExpression(input) / 100;
       setInput(percentageResult.toString());
       setResult(percentageResult);
     } else if (value === "+/-") {
       if (input) {
-        const toggledInput = input.startsWith("-") ? input.slice(1) : `-${input}`;
+        const toggledInput = input.startsWith("-")
+          ? input.slice(1)
+          : `-${input}`;
         setInput(toggledInput);
         setResult(evaluateExpression(toggledInput));
       }
@@ -46,16 +86,23 @@ const Calculator = () => {
     } else {
       let newInput = input;
 
-      // Handle zero as the first number (to prevent invalid expressions)
-      if (input === "0" && value !== "." && !isNaN(value)) {
-        newInput = value; // Replace the zero with the new input
+      // If result is displayed and a number is typed, clear the result
+      if (isResultDisplayed && !/[+\-*/]/.test(value)) {
+        setResult(""); // Clear the result
+        newInput = value; // Start with the number typed
+        setIsResultDisplayed(false); // Reset result flag
       } else {
-        newInput = input + value; // Append the value
+        // Replace last operator if a new operator is clicked
+        const lastChar = input.charAt(input.length - 1);
+        const operators = /[+\-*/]/;
+        if (operators.test(lastChar) && operators.test(value)) {
+          newInput = input.slice(0, -1) + value; // Replace last operator with the new one
+        } else {
+          newInput = input + value;
+        }
       }
 
       setInput(newInput);
-
-      // Calculate live result only if the input doesn't end with an operator
       const endsWithOperator = /[+\-*/]$/.test(newInput);
       if (!endsWithOperator) {
         const liveResult = evaluateExpression(newInput);
@@ -66,39 +113,57 @@ const Calculator = () => {
     }
   };
 
-  // Handle history item click (re-use previous calculations)
+  // Handle history item click
   const handleHistoryClick = (historyItem) => {
-    const [_, historyValue] = historyItem.split(" = "); // Extract result from history
-    const endsWithOperator = /[+\-*/]$/.test(input);
-
-    // Append the history value to the current input if it ends with an operator
-    const newInput = endsWithOperator ? input + historyValue : historyValue;
-    setInput(newInput);
-
-    // Calculate live result
-    const liveResult = evaluateExpression(newInput);
-    setResult(liveResult);
-    setShowHistory(false); // Close the history modal
+    setInput(historyItem.expression); // Use the expression from the history item
+    setResult(historyItem.result); // Use the result from the history item
+    setShowHistory(false);
   };
 
-  // Calculator buttons layout
+  // Handle clearing history
+  const handleClearHistory = async () => {
+    try {
+      // Clear history in the backend
+      await fetch("http://localhost:5000/api/history", { method: "DELETE" });
+      setHistory([]); // Clear history on the frontend
+    } catch (error) {
+      console.error("Error clearing history:", error);
+    }
+  };
+
   const buttons = [
-    "C", "()", "%", "/",
-    "7", "8", "9", "*",
-    "4", "5", "6", "-",
-    "1", "2", "3", "+",
-    "+/-", "0", ".", "=",
+    "C",
+    "()",
+    "%",
+    "/",
+    "7",
+    "8",
+    "9",
+    "*",
+    "4",
+    "5",
+    "6",
+    "-",
+    "1",
+    "2",
+    "3",
+    "+",
+    "+/-",
+    "0",
+    ".",
+    "=",
   ];
 
   return (
-    <div className="bg-gray-100 p-4 rounded-lg shadow-lg max-w-sm mx-auto relative">
-      {/* Display */}
-      <div className="bg-white p-4 mb-4 rounded-lg shadow-md">
-        <div className="text-gray-500 text-sm">{input || "0"}</div>
-        <div className="text-black text-xl font-bold">{result || "0"}</div>
+    <div className="relative max-w-sm p-4 mx-auto mt-10 rounded-lg shadow-lg bg-blue-50">
+      {" "}
+      {/* Changed background color */}
+      <div className="p-4 mb-5 bg-white rounded-lg shadow-md">
+        {" "}
+        {/* Added margin to create space */}
+        <div className="text-sm text-gray-500">{input || "0"}</div>
+        <div className="text-xl font-bold text-black">{result || "0"}</div>
       </div>
-
-      {/* Calculator Buttons */}
       <div className="grid grid-cols-4 gap-2">
         {buttons.map((button) => (
           <button
@@ -118,41 +183,46 @@ const Calculator = () => {
           </button>
         ))}
       </div>
-
-      {/* History Button */}
       <button
         onClick={() => setShowHistory(true)}
-        className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg"
+        className="w-full py-2 mt-4 font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700"
       >
         View History
       </button>
-
-      {/* History Modal */}
       {showHistory && (
-        <div className="absolute top-0 left-0 w-full h-full bg-gray-800 bg-opacity-80 flex justify-center items-center z-10">
-          <div className="bg-white p-4 rounded-lg shadow-lg w-full max-w-sm">
-            <h3 className="text-lg font-bold mb-4 text-center">History</h3>
-            <ul className="text-sm max-h-48 overflow-y-auto">
+        <div className="absolute top-0 left-0 z-10 flex items-center justify-center w-full h-full bg-gray-800 bg-opacity-80">
+          <div className="w-full max-w-sm p-4 bg-white rounded-lg shadow-lg">
+            <h3 className="mb-4 text-lg font-bold text-center">History</h3>
+            <ul className="overflow-y-auto text-sm max-h-48">
               {history.length > 0 ? (
-                history.map((item, index) => (
+                history.map((item) => (
                   <li
-                    key={index}
-                    className="border-b py-2 cursor-pointer hover:bg-gray-100"
+                    key={item._id} // Unique key for each history item
+                    className="py-2 border-b cursor-pointer hover:bg-gray-100"
                     onClick={() => handleHistoryClick(item)}
                   >
-                    {item}
+                    {item.expression} = {item.result}
                   </li>
                 ))
               ) : (
-                <li className="text-gray-500 text-center">No history yet</li>
+                <li>No history found</li>
               )}
             </ul>
-            <button
-              onClick={() => setShowHistory(false)}
-              className="mt-4 w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 rounded-lg"
-            >
-              Close
-            </button>
+
+            <div className="mt-4 text-center">
+              <button
+                onClick={handleClearHistory}
+                className="px-4 py-2 font-bold text-white bg-red-600 rounded-lg hover:bg-red-700"
+              >
+                Clear History
+              </button>
+              <button
+                onClick={() => setShowHistory(false)}
+                className="px-4 py-2 ml-2 font-bold text-white bg-gray-600 rounded-lg hover:bg-gray-700"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
